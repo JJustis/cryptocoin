@@ -1166,8 +1166,15 @@ case 'buy_product':
             'product' => $product['name'],
             'transaction_hash' => $transactionHash,
             'new_balance' => $userBalance - $product['price']
+			//Add to the responseData section in buy_product case
         ];
-        
+        //Add to the responseData section in buy_product case
+if ($product['script_path']) {
+    $redemptionToken = bin2hex(random_bytes(16));
+    $stmt = $pdo->prepare("UPDATE purchases SET redemption_token = ? WHERE id = ?");
+    $stmt->execute([$redemptionToken, $purchaseId]);
+    $responseData['script_url'] = 'execute_script.php?token=' . urlencode($redemptionToken);
+}
         if ($product['minecraft_command']) {
             $responseData['redemption_url'] = 'redeem.php?token=' . urlencode($redemptionToken);
         } elseif ($product['is_virtual']) {

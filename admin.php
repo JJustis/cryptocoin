@@ -194,56 +194,72 @@ function setProductImage($productId, $image) {
     }
 }
 
-function addProduct($name, $description, $price, $stock, $image, $is_virtual, $download_file, $minecraft_command = null, $ign_placeholder = null) {
+function addProduct($name, $description, $price, $stock, $image, $product_type, $download_file = null, $minecraft_command = null, $ign_placeholder = null, $script_path = null) {
     global $pdo;
-
+    
+    // Handle image upload
     $target_dir = "product_images/";
-    $target_file = $target_dir . basename($image["name"]);
-    $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
-
-    // Check if it's a file upload or a URL
     if (is_array($image) && $image["tmp_name"]) {
-        // File upload
+        $target_file = $target_dir . basename($image["name"]);
+        $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+        
         $check = getimagesize($image["tmp_name"]);
         if ($check === false) {
             throw new Exception("File is not an image.");
         }
-
-        // Check file size (optional, adjust the limit as needed)
+        
         if ($image["size"] > 50000000) {
-            throw new Exception("Sorry, your file is too large.");
+            throw new Exception("Image file is too large.");
         }
-
-        // Allow certain file formats
+        
         if($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg" && $imageFileType != "gif" ) {
-            throw new Exception("Sorry, only JPG, JPEG, PNG & GIF files are allowed.");
+            throw new Exception("Only JPG, JPEG, PNG & GIF files are allowed.");
         }
-
-        // Upload the image
+        
         if (!move_uploaded_file($image["tmp_name"], $target_file)) {
-            throw new Exception("Sorry, there was an error uploading your image file.");
+            throw new Exception("Failed to upload image file.");
         }
     } else {
-        // URL-based image
         $target_file = $image;
     }
-
+    
+    // Determine if product is virtual
+    $is_virtual = in_array($product_type, ['virtual', 'minecraft_command', 'script']);
+    
+    // Handle download file for virtual products
     $download_file_path = null;
-    if ($is_virtual && !$minecraft_command) {
+    if ($product_type === 'virtual' && $download_file) {
         $target_dir = "product_downloads/";
-        $target_file = $target_dir . basename($download_file["name"]);
-        $downloadFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
-
-        // Upload the download file
-        if (!move_uploaded_file($download_file["tmp_name"], $target_file)) {
-            throw new Exception("Sorry, there was an error uploading your download file.");
+        $download_target = $target_dir . basename($download_file["name"]);
+        
+        if (!move_uploaded_file($download_file["tmp_name"], $download_target)) {
+            throw new Exception("Failed to upload download file.");
         }
-
-        $download_file_path = $target_file;
+        $download_file_path = $download_target;
+    }
+    
+    // For script type products, validate script path
+    if ($product_type === 'script' && $script_path) {
+        if (!file_exists('scripts/' . basename($script_path))) {
+            throw new Exception("Script file not found in scripts directory.");
+        }
+        $download_file_path = 'scripts/' . basename($script_path);
     }
 
-    $stmt = $pdo->prepare("INSERT INTO products (name, description, price, stock, image, is_virtual, download_file, minecraft_command, ign_placeholder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    return $stmt->execute([$name, $description, $price, $stock, $target_file, $is_virtual, $download_file_path, $minecraft_command, $ign_placeholder]);
+    $stmt = $pdo->prepare("INSERT INTO products (name, description, price, stock, image, is_virtual, download_file, minecraft_command, ign_placeholder, script_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    
+    return $stmt->execute([
+        $name, 
+        $description, 
+        $price, 
+        $stock, 
+        $target_file, 
+        $is_virtual ? 1 : 0, 
+        $download_file_path,
+        $minecraft_command,
+        $ign_placeholder,
+        $product_type === 'script' ? $script_path : null
+    ]);
 }
 
 function sendEmail($to, $subject, $message) {
@@ -293,8 +309,20 @@ case 'add_product':
         $image = isset($_POST['imageUrl']) ? $_POST['imageUrl'] : (isset($_FILES['image']) ? $_FILES['image'] : null);
         $minecraft_command = $_POST['minecraft_command'] ?? null;
         $ign_placeholder = $_POST['ign_placeholder'] ?? null;
+        $script_path = $_POST['script_path'] ?? null;
 
-        if (addProduct($_POST['name'], $_POST['description'], $_POST['price'], $_POST['stock'], $image, $product_type, $download_file, $minecraft_command, $ign_placeholder)) {
+        if (addProduct(
+            $_POST['name'],
+            $_POST['description'],
+            $_POST['price'],
+            $_POST['stock'],
+            $image,
+            $product_type,
+            $download_file,
+            $minecraft_command,
+            $ign_placeholder,
+            $script_path
+        )) {
             $success_message = "Product added successfully";
         } else {
             $error_message = "Failed to add product";
@@ -303,7 +331,6 @@ case 'add_product':
         $error_message = $e->getMessage();
     }
     break;
-
                 case 'update_tracking':
                     $purchaseId = intval($_POST['purchase_id'] ?? 0);
                     $trackingMessage = $_POST['tracking_message'] ?? '';
@@ -525,6 +552,7 @@ if (is_admin_authenticated()) {
                                     <option value="physical">Physical Product</option>
                                     <option value="virtual">Virtual Product</option>
                                     <option value="minecraft_command">Minecraft Command</option>
+									 <option value="script">Run Script</option>
                                 </select>
                             </div>
                         </div>
@@ -536,6 +564,11 @@ if (is_admin_authenticated()) {
                                 <input type="file" class="form-control" name="image" accept="image/*">
                             </div>
                         </div>
+						<div class="row">
+    <div class="col-md-6 mb-3" id="script_fields" style="display: none;">
+        <input type="text" class="form-control" name="script_path" placeholder="Script path (e.g., scripts/example.php)">
+    </div>
+</div>
                         <div class="row">
                             <div class="col-md-6 mb-3" id="virtual_product_fields" style="display: none;">
                                 <input type="file" class="form-control" name="download_file" id="download_file">
@@ -787,6 +820,11 @@ if (is_admin_authenticated()) {
             const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
             emailModal.show();
         }
+		
+		document.getElementById('product_type').addEventListener('change', function() {
+    const scriptFields = document.getElementById('script_fields');
+    scriptFields.style.display = this.value === 'script' ? 'block' : 'none';
+});
     </script>
 </body>
 </html>

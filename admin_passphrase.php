@@ -1,2 +1,2 @@
 <?php
-$correct_passphrase_hash = '$2y$10$f8wy5Z.FNRfk53WO26/zDuDSOjMp368KxZJ0vOCnlNHXVrOgJJYiS';
+$correct_passphrase_hash = '$2y$10$6XZrJGrbAe/Vb/XMThYQ8.gxcPyWFwEn/Nj5l25YvYW1P1ijTkEou';

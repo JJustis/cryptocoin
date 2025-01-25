@@ -43,7 +43,7 @@ class Rcon
     public function __construct($host, $port, $password, $timeout)
     {
         $this->host = $host;
-        $this->port = $port;
+        $this->port = 25555;
         $this->password = $password;
         $this->timeout = $timeout;
     }
