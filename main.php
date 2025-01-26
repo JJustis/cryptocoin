@@ -1154,11 +1154,22 @@ case 'buy_product':
             $redemptionToken = bin2hex(random_bytes(16));
         }
         
-        // Record purchase
-           $stmt = $conn->prepare("INSERT INTO purchases (user_id, product_id, email, transaction_hash) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("iiss", $_SESSION['user_id'], $productId, $email, $transactionHash);
-    $stmt->execute();
-    $purchaseId = $conn->insert_id; // Get the new purchase ID
+       $stmt = $conn->prepare("INSERT INTO purchases (user_id, product_id, email, transaction_hash, redemption_token, ign) VALUES (?, ?, ?, ?, ?, ?)");
+
+if ($product['minecraft_command']) {
+    $redemptionToken = bin2hex(random_bytes(16));
+    $stmt->bind_param("iissss", $_SESSION['user_id'], $productId, $email, $transactionHash, $redemptionToken, $ign);
+} else {
+    $ign = null;
+    $redemptionToken = null;
+    if ($product['script_path']) {
+        $redemptionToken = bin2hex(random_bytes(16));
+    }
+    $stmt->bind_param("iissss", $_SESSION['user_id'], $productId, $email, $transactionHash, $redemptionToken, $ign);
+}
+
+$stmt->execute();
+$purchaseId = $conn->insert_id;
     
         
         $conn->commit();
