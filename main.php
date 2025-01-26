@@ -1155,9 +1155,11 @@ case 'buy_product':
         }
         
         // Record purchase
-        $stmt = $conn->prepare("INSERT INTO purchases (user_id, product_id, email, transaction_hash, redemption_token, ign) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("iissss", $_SESSION['user_id'], $productId, $email, $transactionHash, $redemptionToken, $ign);
-        $stmt->execute();
+           $stmt = $conn->prepare("INSERT INTO purchases (user_id, product_id, email, transaction_hash) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("iiss", $_SESSION['user_id'], $productId, $email, $transactionHash);
+    $stmt->execute();
+    $purchaseId = $conn->insert_id; // Get the new purchase ID
+    
         
         $conn->commit();
         
@@ -1167,14 +1169,19 @@ case 'buy_product':
             'transaction_hash' => $transactionHash,
             'new_balance' => $userBalance - $product['price']
 			//Add to the responseData section in buy_product case
+
         ];
-        //Add to the responseData section in buy_product case
 if ($product['script_path']) {
-    $redemptionToken = bin2hex(random_bytes(16));
-    $stmt = $pdo->prepare("UPDATE purchases SET redemption_token = ? WHERE id = ?");
-    $stmt->execute([$redemptionToken, $purchaseId]);
-    $responseData['script_url'] = 'execute_script.php?token=' . urlencode($redemptionToken);
-}
+        $redemptionToken = bin2hex(random_bytes(16));
+        $stmt = $conn->prepare("UPDATE purchases SET redemption_token = ? WHERE id = ?");
+        if (!$stmt->bind_param("si", $redemptionToken, $purchaseId)) {
+            throw new Exception("Failed to bind token parameters");
+        }
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to save redemption token");
+        }
+        $responseData['script_url'] = 'scripts/exp_distribution.php?token=' . urlencode($redemptionToken);
+    }
         if ($product['minecraft_command']) {
             $responseData['redemption_url'] = 'redeem.php?token=' . urlencode($redemptionToken);
         } elseif ($product['is_virtual']) {
@@ -1259,96 +1266,64 @@ case 'get_tracking_messages':
     response(true, "Purchase details and tracking messages retrieved successfully", ['purchases' => $purchaseDetails]);
     break;
         case 'verify_payment':
+    if (!isset($_POST['custom'])) {
+        response(false, "Invalid payment data");
+    }
+    
+    list($listingId, $buyerId) = explode('|', $_POST['custom']);
+    $listingId = intval($listingId);
+    $buyerId = intval($buyerId);
 
-            // This should be called by PayPal IPN or by the success.php page
+    $conn->begin_transaction();
+    try {
+        // Fetch and lock the listing
+        $stmt = $conn->prepare("SELECT l.*, u.wallet_address as seller_wallet FROM listings l JOIN users u ON l.user_id = u.id WHERE l.id = ? AND l.status = 'active' FOR UPDATE");
+        $stmt->bind_param("i", $listingId);
+        $stmt->execute();
+        $listing = $stmt->get_result()->fetch_assoc();
 
-            if (!isset($_POST['custom'])) {
+        if (!$listing) {
+            throw new Exception("Listing not found or not active");
+        }
 
-                response(false, "Invalid payment data");
+        // Get buyer's wallet
+        $stmt = $conn->prepare("SELECT wallet_address FROM users WHERE id = ?");
+        $stmt->bind_param("i", $buyerId);
+        $stmt->execute();
+        $buyer = $stmt->get_result()->fetch_assoc();
 
-            }
+        if (!$buyer) {
+            throw new Exception("Buyer not found");
+        }
 
-            list($listingId, $buyerId) = explode('|', $_POST['custom']);
+        // Update user_balances for buyer
+        $stmt = $conn->prepare("INSERT INTO user_balances (wallet_address, balance) VALUES (?, ?) ON DUPLICATE KEY UPDATE balance = balance + ?");
+        $stmt->bind_param("sdd", $buyer['wallet_address'], $listing['amount'], $listing['amount']);
+        $stmt->execute();
 
-            $listingId = intval($listingId);
+        // Update user_balances for seller 
+        $stmt = $conn->prepare("UPDATE user_balances SET balance = balance - ? WHERE wallet_address = ?");
+        $stmt->bind_param("ds", $listing['amount'], $listing['seller_wallet']);
+        $stmt->execute();
 
-            $buyerId = intval($buyerId);
+        // Update listing status
+        $stmt = $conn->prepare("UPDATE listings SET status = 'completed' WHERE id = ?");
+        $stmt->bind_param("i", $listingId);
+        $stmt->execute();
 
+        // Log transaction
+        $stmt = $conn->prepare("INSERT INTO transactions (listing_id, seller_id, buyer_id, amount, price) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("iiidi", $listingId, $listing['user_id'], $buyerId, $listing['amount'], $listing['price']);
+        $stmt->execute();
 
-
-            $conn->begin_transaction();
-
-            try {
-
-                $stmt = $conn->prepare("SELECT * FROM listings WHERE id = ? AND status = 'active'");
-
-                $stmt->bind_param("i", $listingId);
-
-                $stmt->execute();
-
-                $listing = $stmt->get_result()->fetch_assoc();
-
-
-
-                if (!$listing) {
-
-                    throw new Exception("Listing not found or not active");
-
-                }
-
-
-
-                // Update listing status
-
-                $stmt = $conn->prepare("UPDATE listings SET status = 'sold' WHERE id = ?");
-
-                $stmt->bind_param("i", $listingId);
-
-                $stmt->execute();
-
-
-
-                // Transfer coins from seller to buyer
-
-                $blockchain->updateBalance($listing['seller_wallet_address'], -$listing['amount']);
-
-                $stmt = $conn->prepare("SELECT wallet_address FROM users WHERE id = ?");
-
-                $stmt->bind_param("i", $buyerId);
-
-                $stmt->execute();
-
-                $buyerWallet = $stmt->get_result()->fetch_assoc()['wallet_address'];
-
-                $blockchain->updateBalance($buyerWallet, $listing['amount']);
-
-
-
-                // Log the transaction
-
-                $stmt = $conn->prepare("INSERT INTO transactions (seller_id, buyer_id, listing_id, amount, price) VALUES (?, ?, ?, ?, ?)");
-
-                $stmt->bind_param("iiidi", $listing['user_id'], $buyerId, $listingId, $listing['amount'], $listing['price']);
-
-                $stmt->execute();
-
-
-
-                $conn->commit();
-
-                response(true, "Payment verified and coins transferred");
-
-            } catch (Exception $e) {
-
-                $conn->rollback();
-
-                response(false, "Failed to process payment: " . $e->getMessage());
-
-            }
-
-            break;
-
-
+        $conn->commit();
+        response(true, "Payment verified and coins transferred");
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log("Payment verification failed: " . $e->getMessage());
+        response(false, "Failed to process payment: " . $e->getMessage());
+    }
+    break;
 
         default:
 

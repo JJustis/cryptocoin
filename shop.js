@@ -111,17 +111,20 @@ const Shop = {
             }
 
             const result = await API.buyProduct(productId, email, ign);
-            if (result.redemption_url) {
-                alert(`Purchase successful! You bought ${result.product}. The command will be executed for player: ${ign}`);
-                window.location.href = result.redemption_url;
-            } else if (result.download_url) {
-                alert(`Purchase successful! You bought ${result.product}. Click OK to download.`);
-                window.location.href = result.download_url;
-            } else {
-                alert(`Purchase successful! You bought ${result.product}. Transaction hash: ${result.transaction_hash}`);
-            }
-            await this.updateBalance();
-            await this.loadProducts(); // Refresh product list
+if (result.script_url) {
+   alert(`Purchase successful! You bought ${result.product}. Click OK to run the script.`);
+   window.location.href = result.script_url;
+} else if (result.redemption_url) {
+   alert(`Purchase successful! You bought ${result.product}. The command will be executed for player: ${ign}`);
+   window.location.href = result.redemption_url;
+} else if (result.download_url) {
+   alert(`Purchase successful! You bought ${result.product}. Click OK to download.`);
+   window.location.href = result.download_url;
+} else {
+   alert(`Purchase successful! You bought ${result.product}. Transaction hash: ${result.transaction_hash}`);
+}
+await this.updateBalance();
+await this.loadProducts(); // Refresh product list
         } catch (error) {
             this.showError(`Purchase failed: ${error.message}`);
         }

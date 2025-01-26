@@ -48,35 +48,34 @@ if ($listing_id == 0) {
 $conn->begin_transaction();
 
 try {
-    // Fetch and lock the listing
+    // Get listing and user details
     $stmt = $conn->prepare("SELECT * FROM listings WHERE id = ? AND status = 'active' FOR UPDATE");
     $stmt->bind_param("i", $listing_id);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $listing = $result->fetch_assoc();
+    $listing = $stmt->get_result()->fetch_assoc();
 
     if (!$listing) {
         throw new Exception("Listing not found or no longer active.");
     }
 
-    debug_log("Listing data: " . print_r($listing, true));
-
-    // TODO: Implement PayPal payment verification here
-    // For now, we'll assume the payment is verified if we have a PayerID and token
+    // Critical fix: Add coins to buyer's balance
+    $stmt = $conn->prepare("INSERT INTO user_balances (wallet_address, balance) 
+                           VALUES (?, ?) 
+                           ON DUPLICATE KEY UPDATE balance = balance + ?");
+    $stmt->bind_param("sdd", $_SESSION['wallet_address'], $listing['amount'], $listing['amount']);
+    $stmt->execute();
 
     // Update listing status
     $update_stmt = $conn->prepare("UPDATE listings SET status = 'sold' WHERE id = ?");
     $update_stmt->bind_param("i", $listing_id);
     $update_stmt->execute();
 
-    // Transfer coins to buyer
-    $transfer_to_stmt = $conn->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-    $transfer_to_stmt->bind_param("di", $listing['amount'], $_SESSION['user_id']);
-    $transfer_to_stmt->execute();
-
-    // Log the transaction
-    $log_stmt = $conn->prepare("INSERT INTO transactions (seller_id, buyer_id, amount, price, paypal_payer_id, paypal_token) VALUES (?, ?, ?, ?, ?, ?)");
-    $log_stmt->bind_param("iiddss", $listing['user_id'], $_SESSION['user_id'], $listing['amount'], $listing['price'], $paypal_payer_id, $paypal_token);
+    // Log transaction
+    $log_stmt = $conn->prepare("INSERT INTO transactions (seller_id, buyer_id, amount, price, paypal_payer_id, paypal_token) 
+                               VALUES (?, ?, ?, ?, ?, ?)");
+    $log_stmt->bind_param("iiddss", $listing['user_id'], $_SESSION['user_id'], 
+                         $listing['amount'], $listing['price'], 
+                         $paypal_payer_id, $paypal_token);
     $log_stmt->execute();
 
     $conn->commit();

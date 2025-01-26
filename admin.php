@@ -309,9 +309,14 @@ case 'add_product':
         $image = isset($_POST['imageUrl']) ? $_POST['imageUrl'] : (isset($_FILES['image']) ? $_FILES['image'] : null);
         $minecraft_command = $_POST['minecraft_command'] ?? null;
         $ign_placeholder = $_POST['ign_placeholder'] ?? null;
-        $script_path = $_POST['script_path'] ?? null;
+        
+        // Handle script path for script type products
+        $script_path = null;
+        if ($product_type === 'script') {
+            $script_path = 'scripts/exp_distribution.php';
+        }
 
-        if (addProduct(
+        $result = addProduct(
             $_POST['name'],
             $_POST['description'],
             $_POST['price'],
@@ -322,7 +327,9 @@ case 'add_product':
             $minecraft_command,
             $ign_placeholder,
             $script_path
-        )) {
+        );
+
+        if ($result) {
             $success_message = "Product added successfully";
         } else {
             $error_message = "Failed to add product";
