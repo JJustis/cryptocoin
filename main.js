@@ -653,17 +653,24 @@ const updateListingsDisplay = async () => {
 
                 elements.allListingsDisplay.innerHTML = listings.map(listing => `
 
-                    <div class="listing-item">
-
-                        <div>Amount: ${listing.amount} coins</div>
-
-                        <div>Price: $${listing.price}</div>
-
-                        <div>Seller: ${listing.seller_username || 'Unknown'}</div>
-
-                        <button onclick="safeBuyListing(${listing.id})">Buy</button>
-
-                    </div>
+                   <div class="ticker-wrap bg-gray-900 border-y border-blue-500">
+   <button onclick="safeBuyListing(${listing.id})" class="ticker-button">
+       <div class="ticker">
+           <div class="ticker-item">
+               <span class="symbol">CCII</span>
+               <span class="amount">${listing.amount} Coins</span>
+               <span class="separator">|</span>
+               <span class="price">$${listing.price}</span>
+               <span class="change ${listing.amount > 1000 ? 'text-green-500' : 'text-red-500'}">
+                   ${listing.amount > 1000 ? '↑' : '↓'}
+               </span>
+               <span class="separator">|</span>
+               <span class="seller">Seller: ${listing.seller_username || 'Unknown'}</span>
+               <span class="buy-text">Click to Buy</span>
+           </div>
+       </div>
+   </button>
+</div>
 
                 `).join('');
 

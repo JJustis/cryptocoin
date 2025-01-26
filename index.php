@@ -189,7 +189,120 @@
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             margin-bottom: 20px;
         }
+		.listing-item {
+   background: linear-gradient(135deg, #43cea2 0%, #185a9d 100%);
+   border: 1px solid rgba(255,255,255,0.1);
+   transform: translateY(0);
+   box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.listing-item:hover {
+   box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+}
+
+.listing-item button {
+   background: rgba(255,255,255,0.2);
+   backdrop-filter: blur(5px);
+   border: 1px solid rgba(255,255,255,0.3);
+}
+
+.listing-item button:hover {
+   background: rgba(255,255,255,0.3);
+}
     </style>
+	<style>
+.ticker-wrap {
+   width: 100%;
+   overflow: hidden;
+   height: 50px;
+   background: linear-gradient(90deg, #0a0f1c, #1a2236);
+   border-radius: 4px;
+   margin: 10px 0;
+    position: relative; /* Added */
+}
+
+.ticker-button {
+   width: 100%;
+   height: 100%;
+   border: none;
+   padding: 0;
+   background: transparent;
+   cursor: pointer;
+   transition: all 0.3s ease;
+}
+
+.ticker-button:hover {
+   background: rgba(255, 255, 255, 0.05);
+}
+
+.ticker {
+   display: inline-flex;
+   white-space: nowrap;
+   padding-right: 100%;
+   animation: ticker 15s infinite linear;
+}
+
+.ticker-item {
+   display: inline-flex;
+   align-items: center;
+   gap: 1.5rem;
+   padding: 0 2rem;
+   font-family: 'Monaco', monospace;
+   height: 50px;
+}
+
+.symbol {
+   color: #3498db;
+   font-weight: bold;
+   font-size: 1.2rem;
+}
+
+.amount {
+   color: #fff;
+}
+
+.price {
+   color: #2ecc71;
+   font-weight: bold;
+}
+
+.separator {
+   color: #4a5568;
+}
+
+.seller {
+   color: #a0aec0;
+}
+
+.buy-text {
+   color: #3498db;
+   font-weight: bold;
+   animation: pulse 0s infinite;
+}
+
+
+@keyframes pulse {
+   0%, 100% { opacity: 1; }
+   50% { opacity: 0.5; }
+}
+.ticker-item {
+   opacity: 0;
+   animation: fadeIn 0.5s forwards;
+}
+
+@keyframes fadeIn {
+   from { opacity: 0; }
+   to { opacity: 1; }
+}
+
+@keyframes ticker {
+   0% { transform: translate3d(40%, 0, 0); }
+   100% { transform: translate3d(-60%, 0, 0); }
+}
+.ticker:hover {
+   animation-play-state: paused;
+}
+</style>
 </head>
 <body>
     <div class="container">
