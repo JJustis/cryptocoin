@@ -239,7 +239,7 @@
    display: inline-flex;
    white-space: nowrap;
    padding-right: 100%;
-   animation: ticker 15s infinite linear;
+   animation: ticker 18s infinite linear;
 }
 
 .ticker-item {
